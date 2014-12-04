@@ -4,5 +4,6 @@
     <string name="app_name">Sp2014f_GroupB</string>
     <string name="hello_world">Hello world!</string>
     <string name="action_settings">Settings</string>
-
+	<string name="tv_memo">地図</string>
+    
 </resources>

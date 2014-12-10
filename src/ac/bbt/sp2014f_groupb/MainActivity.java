@@ -17,8 +17,10 @@ import android.app.ActionBar;
 import android.app.Fragment;
 import android.content.Context;
 import android.content.Intent;
+import android.content.res.Resources;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.support.v4.app.FragmentActivity;
 import android.util.Xml;
 import android.view.LayoutInflater;
 import android.view.Menu;
@@ -36,9 +38,9 @@ import android.os.Build;
 
 
 
-public class MainActivity extends Activity {
+public class MainActivity extends FragmentActivity  {
 
-    @Override
+	@Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
@@ -75,7 +77,8 @@ public class MainActivity extends Activity {
     public static class PlaceholderFragment extends Fragment {
 
     	static private List<Place> list;
-        
+    	private AreaListAdapter adapter;
+    	
     	private class Place {
     		private String _name;
     	    private String _address;
@@ -136,6 +139,15 @@ public class MainActivity extends Activity {
     	        convertView = layoutInflater.inflate(R.layout.listitem, null);
     	        TextView tv = (TextView) convertView.findViewById(R.id.listitem);
     	        tv.setText(place.getName() + "\r\n" + place.getGenre() + "\r\n" + place.getAddress());
+    	        
+    	        //ListView listView = (ListView)parent;
+    	        //Resources resources = context.getResources();
+    	        //if (listView.getCheckedItemPosition() == position) {
+    	        //    convertView.setBackgroundColor(resources.getColor(R.color.green));
+    	        //} else {
+    	        //    convertView.setBackgroundColor(resources.getColor(R.color.white));
+    	        //}
+    	        
     	        return convertView;
     	    }
     	}
@@ -167,6 +179,9 @@ public class MainActivity extends Activity {
         	public void onItemClick(AdapterView<?> parent, View view, int position, long id){
         		// ListViewオブジェクト取得
         		ListView listview = (ListView)parent;
+        		
+        		//adapter.notifyDataSetChanged();
+        		
         		// 選択された値取得
         		Place item = (Place) listview.getAdapter().getItem(position);
         		// Toast確認
@@ -206,6 +221,7 @@ public class MainActivity extends Activity {
         	String appid = "guest";
             String latitude = "35.681382";
             String longitude = "139.766084";
+            String genre1 = "G002";
             String range = "3";
             String name = "harbour";
             
@@ -230,8 +246,8 @@ public class MainActivity extends Activity {
             //		apiURL, appid, area, pref, sort);
             
             //hotpepper
-            return String.format("%skey=%s&Latitude=%s&Longitude=%s&Range=%s", 
-            		apiURL, appid, latitude, longitude, range);
+            return String.format("%skey=%s&Latitude=%s&Longitude=%s&Range=%s&GenreCD=%s", 
+            		apiURL, appid, latitude, longitude, range, genre1);
         }
         
         //XML解析
@@ -337,7 +353,8 @@ public class MainActivity extends Activity {
             protected void onPostExecute(String result) {
                 // 取得した結果をリストビューに格納
             	ListView listview = (ListView) getActivity().findViewById(R.id.lv_list);
-            	listview.setAdapter(new AreaListAdapter(getActivity(), list));
+            	adapter = new AreaListAdapter(getActivity(), list);
+            	listview.setAdapter(adapter);
             }
         }
         

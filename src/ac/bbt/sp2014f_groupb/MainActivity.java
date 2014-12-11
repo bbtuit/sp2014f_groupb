@@ -12,6 +12,7 @@ import java.util.List;
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
 
+import android.R.integer;
 import android.app.Activity;
 import android.app.ActionBar;
 import android.app.Fragment;
@@ -27,6 +28,8 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.AbsListView;
+import android.widget.AbsListView.OnScrollListener;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.BaseAdapter;
@@ -78,6 +81,10 @@ public class MainActivity extends FragmentActivity  {
 
     	static private List<Place> list;
     	private AreaListAdapter adapter;
+    	private int getcount = 10;
+    	private int topPosition;
+    	private int topPositionY;
+    	private boolean setpos;
     	
     	private class Place {
     		private String _name;
@@ -164,17 +171,61 @@ public class MainActivity extends FragmentActivity  {
         	ListView listview = (ListView)rootView.findViewById(R.id.lv_list);
         	// ListViewオブジェクトにクリックリスナー設定
         	listview.setOnItemClickListener(new ListItemClickListener());
-            
+            //　ListViewオブジェクトにスクロールリスナー設定
+        	listview.setOnScrollListener(new onScrollListber());
+        	
             return rootView;
         }
         
         public void onStart() {
         	super.onStart();
+        	//
+        	list = new ArrayList<Place>();
         	// 非同期(スレッド)処理クラスの生成
         	AsyncHttpRequest task = new AsyncHttpRequest(getActivity());
-        	task.execute(createURL());
+        	task.execute(createURL(0));
         }
 
+        private AsyncHttpRequest mTask ;
+        
+        class onScrollListber implements OnScrollListener{
+
+			@Override
+			public void onScroll(AbsListView view, int firstVisibleItem,
+					int visibleItemCount, int totalItemCount) {
+				// TODO 自動生成されたメソッド・スタブ
+				if (totalItemCount == 0) {
+					return;
+				}
+				//リストが最下行まで移動したら再読み込み
+				if (totalItemCount == firstVisibleItem + visibleItemCount) {
+	            	// 非同期(スレッド)処理クラスの生成
+					if (mTask != null && mTask.getStatus() == AsyncTask.Status.RUNNING) {
+						return;
+					}
+					 //いま表示しているリストアイテムの順番を取得
+					ListView listview = (ListView) getActivity().findViewById(R.id.lv_list);
+			        if(listview.getChildAt(0)!=null){
+			        	topPosition = listview.getFirstVisiblePosition();
+			        	topPositionY = listview.getChildAt(0).getTop();
+			        	setpos = true;
+			        }else{
+			        	setpos = false; 
+			        }
+					mTask = new AsyncHttpRequest(getActivity());
+					mTask.execute(createURL(totalItemCount));
+	                //additionalReading();
+	            }
+			}
+
+			@Override
+			public void onScrollStateChanged(AbsListView view, int scrollState) {
+				// TODO 自動生成されたメソッド・スタブ
+				
+			}
+        	
+        }
+        
         class ListItemClickListener implements OnItemClickListener{
         	public void onItemClick(AdapterView<?> parent, View view, int position, long id){
         		// ListViewオブジェクト取得
@@ -189,9 +240,9 @@ public class MainActivity extends FragmentActivity  {
         		
         	}
         }
-        
+                
         //HTTPリクエストを送信する準備
-        public String createURL() {
+        public String createURL(int listcount) {
         	//yahoo
             //String apiURL = "http://shopping.yahooapis.jp/ShoppingWebService/V1/itemSearch?";
         	//String appid = "dj0zaiZpPU9XR2h5QldXQTh4VyZzPWNvbnN1bWVyc2VjcmV0Jng9NDk-";
@@ -224,6 +275,8 @@ public class MainActivity extends FragmentActivity  {
             String genre1 = "G002";
             String range = "3";
             String name = "harbour";
+            int count = getcount;
+            int start = listcount + 1;
             
         	//
         	String mEncString = "";
@@ -246,8 +299,8 @@ public class MainActivity extends FragmentActivity  {
             //		apiURL, appid, area, pref, sort);
             
             //hotpepper
-            return String.format("%skey=%s&Latitude=%s&Longitude=%s&Range=%s&GenreCD=%s", 
-            		apiURL, appid, latitude, longitude, range, genre1);
+            return String.format("%skey=%s&Latitude=%s&Longitude=%s&Range=%s&GenreCD=%s&Start=%s&Count=%s", 
+            		apiURL, appid, latitude, longitude, range, genre1, start, count);
         }
         
         //XML解析
@@ -258,7 +311,6 @@ public class MainActivity extends FragmentActivity  {
                 XmlPullParser myxmlPullParser = Xml.newPullParser();
                 myxmlPullParser.setInput(stream, "UTF-8");
 
-                list = new ArrayList<Place>();
                 String name = "";
                 String address = "";
                 String latitude = "";
@@ -355,6 +407,10 @@ public class MainActivity extends FragmentActivity  {
             	ListView listview = (ListView) getActivity().findViewById(R.id.lv_list);
             	adapter = new AreaListAdapter(getActivity(), list);
             	listview.setAdapter(adapter);
+            	//リストを更新前の位置に戻す
+            	if(setpos){
+            		listview.setSelectionFromTop(topPosition, topPositionY);
+            	}
             }
         }
         

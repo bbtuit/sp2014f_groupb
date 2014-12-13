@@ -6,19 +6,18 @@ import java.io.UnsupportedEncodingException;
 import java.net.URL;
 import java.net.URLConnection;
 import java.net.URLEncoder;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Date;
 import java.util.List;
 
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
 
-import android.R.integer;
 import android.app.Activity;
-import android.app.ActionBar;
 import android.app.Fragment;
 import android.content.Context;
-import android.content.Intent;
-import android.content.res.Resources;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.v4.app.FragmentActivity;
@@ -31,15 +30,11 @@ import android.view.ViewGroup;
 import android.widget.AbsListView;
 import android.widget.AbsListView.OnScrollListener;
 import android.widget.AdapterView;
-import android.widget.ArrayAdapter;
 import android.widget.BaseAdapter;
 import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.AdapterView.OnItemClickListener;
 import android.widget.Toast;
-import android.os.Build;
-
-
 
 public class MainActivity extends FragmentActivity  {
 
@@ -47,13 +42,14 @@ public class MainActivity extends FragmentActivity  {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        
         if (savedInstanceState == null) {
             getFragmentManager().beginTransaction()
                     .add(R.id.container, new PlaceholderFragment())
                     .commit();
         }
+        
     }
-
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
@@ -147,14 +143,6 @@ public class MainActivity extends FragmentActivity  {
     	        TextView tv = (TextView) convertView.findViewById(R.id.listitem);
     	        tv.setText(place.getName() + "\r\n" + place.getGenre() + "\r\n" + place.getAddress());
     	        
-    	        //ListView listView = (ListView)parent;
-    	        //Resources resources = context.getResources();
-    	        //if (listView.getCheckedItemPosition() == position) {
-    	        //    convertView.setBackgroundColor(resources.getColor(R.color.green));
-    	        //} else {
-    	        //    convertView.setBackgroundColor(resources.getColor(R.color.white));
-    	        //}
-    	        
     	        return convertView;
     	    }
     	}
@@ -174,7 +162,7 @@ public class MainActivity extends FragmentActivity  {
             //　ListViewオブジェクトにスクロールリスナー設定
         	listview.setOnScrollListener(new onScrollListber());
         	
-            return rootView;
+        	return rootView;
         }
         
         public void onStart() {
@@ -231,16 +219,57 @@ public class MainActivity extends FragmentActivity  {
         		// ListViewオブジェクト取得
         		ListView listview = (ListView)parent;
         		
-        		//adapter.notifyDataSetChanged();
-        		
         		// 選択された値取得
         		Place item = (Place) listview.getAdapter().getItem(position);
+        		
         		// Toast確認
         		Toast.makeText(getActivity(), "お店 : " + item.getName() + ", 緯度 : " + item.getLat() + ", 経度 : " + item.getLng(), Toast.LENGTH_SHORT).show();
         		
         	}
         }
-                
+        
+        public String[] createGenre() {
+        	String genre[] = {null,null,null};
+        	
+        	long currentTimeMillis = System.currentTimeMillis();
+        	
+        	Calendar calendar = Calendar.getInstance();
+        	
+        	calendar.setTimeInMillis(currentTimeMillis);
+        	
+        	Date date = new Date(currentTimeMillis);
+        	SimpleDateFormat simpleDateFormat = new SimpleDateFormat("HHmmss");
+        	
+        	String time = simpleDateFormat.format(date);
+        	if (Integer.parseInt(time) >= 6000 && Integer.parseInt(time) < 100000) {
+        		genre[0] = "G014";
+        		genre[1] = "G004";
+        		genre[2] = "G005";
+        		
+        	} else if (Integer.parseInt(time) >= 100000 && Integer.parseInt(time) < 140000) {
+        		genre[0] = "G005";
+        		genre[1] = "G006";
+        		genre[2] = "";
+
+        	} else if (Integer.parseInt(time) >= 140000 && Integer.parseInt(time) < 180000) {
+        		genre[0] = "G014";
+        		genre[1] = "";
+        		genre[2] = "";
+
+        	} else if (Integer.parseInt(time) >= 180000 && Integer.parseInt(time) < 210000) {
+        		genre[0] = "G001";
+        		genre[1] = "";
+        		genre[2] = "";
+
+        	} else {
+        		genre[0] = "G011";
+        		genre[1] = "G012";
+        		genre[2] = "G013";
+
+        	}
+        	
+        	return genre;
+        }
         //HTTPリクエストを送信する準備
         public String createURL(int listcount) {
         	//yahoo
@@ -270,9 +299,9 @@ public class MainActivity extends FragmentActivity  {
             //hotpepper
             String apiURL = "http://api.hotpepper.jp/GourmetSearch/V110/?";
         	String appid = "guest";
-            String latitude = "35.681382";
-            String longitude = "139.766084";
-            String genre1 = "G002";
+            String latitude = "35.658517";
+            String longitude = "139.701334";
+            String genre[] = createGenre();
             String range = "3";
             String name = "harbour";
             int count = getcount;
@@ -299,8 +328,8 @@ public class MainActivity extends FragmentActivity  {
             //		apiURL, appid, area, pref, sort);
             
             //hotpepper
-            return String.format("%skey=%s&Latitude=%s&Longitude=%s&Range=%s&GenreCD=%s&Start=%s&Count=%s", 
-            		apiURL, appid, latitude, longitude, range, genre1, start, count);
+            return String.format("%skey=%s&Latitude=%s&Longitude=%s&Range=%s&GenreCD=%s&GenreCD=%s&GenreCD=%s&Start=%s&Count=%s", 
+            		apiURL, appid, latitude, longitude, range, genre[0], genre[1], genre[2], start, count);
         }
         
         //XML解析

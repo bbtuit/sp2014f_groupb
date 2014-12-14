@@ -15,9 +15,18 @@ import java.util.List;
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
 
+import com.google.android.gms.maps.CameraUpdate;
+import com.google.android.gms.maps.CameraUpdateFactory;
+import com.google.android.gms.maps.GoogleMap;
+import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.maps.MapFragment;
+
 import android.app.Activity;
 import android.app.Fragment;
 import android.content.Context;
+import android.location.Location;
+import android.location.LocationManager;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.v4.app.FragmentActivity;
@@ -38,6 +47,10 @@ import android.widget.Toast;
 
 public class MainActivity extends FragmentActivity  {
 
+	private static GoogleMap mGoogleMap = null;
+    private static Location mMyLocation = null;
+    private static boolean mMyLocationCentering = false;
+    
 	@Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -81,6 +94,11 @@ public class MainActivity extends FragmentActivity  {
     	private int topPosition;
     	private int topPositionY;
     	private boolean setpos;
+    	private double mLat;
+    	private double mLong;
+    	private int mMaxResultCount = 0;
+    	private static MarkerOptions mMyMarkerOptions = null;
+    	private boolean initFlg = true;
     	
     	private class Place {
     		private String _name;
@@ -161,21 +179,53 @@ public class MainActivity extends FragmentActivity  {
         	listview.setOnItemClickListener(new ListItemClickListener());
             //　ListViewオブジェクトにスクロールリスナー設定
         	listview.setOnScrollListener(new onScrollListber());
-        	
+        	//　スポット検索結果を格納するリストの初期化
+        	list = new ArrayList<Place>();
+        	//　Map関連処理
+        	mGoogleMap = ((MapFragment)getFragmentManager().findFragmentById(R.id.map)).getMap();
+            if (mGoogleMap != null) {
+                // 現在地マーカーを表示
+                mGoogleMap.setMyLocationEnabled(true);
+                // 現在地が取得できたらマップ中央に表示する
+                mGoogleMap.setOnMyLocationChangeListener(new GoogleMap.OnMyLocationChangeListener() {
+                    @Override
+                    public void onMyLocationChange(Location location) {
+                        mMyLocation = location;
+                        if (mMyLocation != null && mMyLocationCentering == false) {    // 一度だけ現在地を画面中央に表示する
+                            mMyLocationCentering = true;
+                            CameraUpdate cameraUpdate = CameraUpdateFactory.newLatLngZoom(new LatLng(mMyLocation.getLatitude(), mMyLocation.getLongitude()), 15.0f);
+                            mGoogleMap.animateCamera(cameraUpdate);
+                            //現在地緯度
+                            mLat = mMyLocation.getLatitude();
+                            //現在地経度
+                            mLong = mMyLocation.getLongitude();
+                            //初回のみスポット検索を実施
+                            if (initFlg == true) {
+                            	initFlg = false;
+                            	AsyncHttpRequest task = new AsyncHttpRequest(getActivity());
+                            	task.execute(createURL(0));
+                            }
+                        }
+                    }
+                });
+            }
+            
         	return rootView;
         }
         
         public void onStart() {
         	super.onStart();
+        	
         	//
-        	list = new ArrayList<Place>();
+        	//list = new ArrayList<Place>();
         	// 非同期(スレッド)処理クラスの生成
-        	AsyncHttpRequest task = new AsyncHttpRequest(getActivity());
-        	task.execute(createURL(0));
+        	//AsyncHttpRequest task = new AsyncHttpRequest(getActivity());
+        	//task.execute(createURL(0));
         }
 
         private AsyncHttpRequest mTask ;
         
+        //ListViewスクロール時のイベント
         class onScrollListber implements OnScrollListener{
 
 			@Override
@@ -200,8 +250,13 @@ public class MainActivity extends FragmentActivity  {
 			        }else{
 			        	setpos = false; 
 			        }
-					mTask = new AsyncHttpRequest(getActivity());
-					mTask.execute(createURL(totalItemCount));
+					
+					if (mMaxResultCount != totalItemCount) {
+						mTask = new AsyncHttpRequest(getActivity());
+						mTask.execute(createURL(totalItemCount));
+					}
+			        //mTask = new AsyncHttpRequest(getActivity());
+			        //mTask.execute(createURL(totalItemCount));
 	                //additionalReading();
 	            }
 			}
@@ -214,6 +269,7 @@ public class MainActivity extends FragmentActivity  {
         	
         }
         
+        //ListViewのITEMクリック時のイベント
         class ListItemClickListener implements OnItemClickListener{
         	public void onItemClick(AdapterView<?> parent, View view, int position, long id){
         		// ListViewオブジェクト取得
@@ -222,12 +278,21 @@ public class MainActivity extends FragmentActivity  {
         		// 選択された値取得
         		Place item = (Place) listview.getAdapter().getItem(position);
         		
+        		mMyMarkerOptions = new MarkerOptions();
+                mMyMarkerOptions.position(new LatLng(Double.parseDouble(item.getLat()), Double.parseDouble(item.getLng())));
+                
+                // 古いピンを消去する
+                mGoogleMap.clear();
+                // タップしたスポットの地点にピンを立てる
+                mGoogleMap.addMarker(mMyMarkerOptions);
+                
         		// Toast確認
         		Toast.makeText(getActivity(), "お店 : " + item.getName() + ", 緯度 : " + item.getLat() + ", 経度 : " + item.getLng(), Toast.LENGTH_SHORT).show();
         		
         	}
         }
         
+        //時間帯によってジャンルを決定する
         public String[] createGenre() {
         	String genre[] = {null,null,null};
         	
@@ -272,6 +337,7 @@ public class MainActivity extends FragmentActivity  {
         }
         //HTTPリクエストを送信する準備
         public String createURL(int listcount) {
+        	
         	//yahoo
             //String apiURL = "http://shopping.yahooapis.jp/ShoppingWebService/V1/itemSearch?";
         	//String appid = "dj0zaiZpPU9XR2h5QldXQTh4VyZzPWNvbnN1bWVyc2VjcmV0Jng9NDk-";
@@ -302,7 +368,7 @@ public class MainActivity extends FragmentActivity  {
             String latitude = "35.658517";
             String longitude = "139.701334";
             String genre[] = createGenre();
-            String range = "3";
+            String range = "4";
             String name = "harbour";
             int count = getcount;
             int start = listcount + 1;
@@ -329,7 +395,7 @@ public class MainActivity extends FragmentActivity  {
             
             //hotpepper
             return String.format("%skey=%s&Latitude=%s&Longitude=%s&Range=%s&GenreCD=%s&GenreCD=%s&GenreCD=%s&Start=%s&Count=%s", 
-            		apiURL, appid, latitude, longitude, range, genre[0], genre[1], genre[2], start, count);
+            		apiURL, appid, mLat, mLong, range, genre[0], genre[1], genre[2], start, count);
         }
         
         //XML解析
@@ -351,7 +417,7 @@ public class MainActivity extends FragmentActivity  {
                 	if (e == XmlPullParser.START_TAG) {
                 		if (myxmlPullParser.getName().equals("NumberOfResults")) {
                 			// (2)取得した記事の個数の取得
-                			String status = myxmlPullParser.nextText();
+                			mMaxResultCount = Integer.parseInt(myxmlPullParser.nextText());
                 			
                 		} else if (myxmlPullParser.getName().equals("ShopName")) {
                 			// (3)お店の名前の取得
@@ -383,6 +449,7 @@ public class MainActivity extends FragmentActivity  {
         	}
         } 
         
+        //リクエスト要求を実行
         public String httpGet(String strURL) {
             // (1)try-catchによるエラー処理
             try {
@@ -432,7 +499,7 @@ public class MainActivity extends FragmentActivity  {
             // このメソッドは非同期処理の終わった後に呼び出されます
             @Override
             protected void onPostExecute(String result) {
-                // 取得した結果をリストビューに格納
+            	// 取得した結果をリストビューに格納
             	ListView listview = (ListView) getActivity().findViewById(R.id.lv_list);
             	adapter = new AreaListAdapter(getActivity(), list);
             	listview.setAdapter(adapter);
@@ -440,6 +507,7 @@ public class MainActivity extends FragmentActivity  {
             	if(setpos){
             		listview.setSelectionFromTop(topPosition, topPositionY);
             	}
+                
             }
         }
         

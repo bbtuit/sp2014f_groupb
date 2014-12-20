@@ -1,8 +1,11 @@
 package ac.bbt.sp2014f_groupb;
 
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.UnsupportedEncodingException;
+import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLConnection;
 import java.net.URLEncoder;
@@ -10,8 +13,10 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 
+import org.json.JSONObject;
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
 
@@ -20,6 +25,7 @@ import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.maps.model.PolylineOptions;
 import com.google.android.gms.maps.MapFragment;
 
 import android.app.Activity;
@@ -51,6 +57,10 @@ public class MainActivity extends FragmentActivity  {
     private static Location mMyLocation = null;
     private static boolean mMyLocationCentering = false;
     
+    public static String posinfo = "";
+    public static String info_A = "";
+    public static String info_B = "";
+
 	@Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -99,6 +109,7 @@ public class MainActivity extends FragmentActivity  {
     	private int mMaxResultCount = 0;
     	private static MarkerOptions mMyMarkerOptions = null;
     	private boolean initFlg = true;
+    	public String travelMode = "walking";
     	
     	private class Place {
     		private String _name;
@@ -280,16 +291,163 @@ public class MainActivity extends FragmentActivity  {
         		
         		mMyMarkerOptions = new MarkerOptions();
                 mMyMarkerOptions.position(new LatLng(Double.parseDouble(item.getLat()), Double.parseDouble(item.getLng())));
+                mMyMarkerOptions.snippet(item.getName());
                 
                 // 古いピンを消去する
                 mGoogleMap.clear();
                 // タップしたスポットの地点にピンを立てる
                 mGoogleMap.addMarker(mMyMarkerOptions);
                 
+                //ルート検索
+                routeSearch(item.getLat(), item.getLng());
+                
         		// Toast確認
         		Toast.makeText(getActivity(), "お店 : " + item.getName() + ", 緯度 : " + item.getLat() + ", 経度 : " + item.getLng(), Toast.LENGTH_SHORT).show();
         		
         	}
+        }
+        
+        private void routeSearch(String lat, String lng){
+            //progressDialog.show();
+            
+            LatLng origin = new LatLng(mLat, mLong);
+            LatLng dest = new LatLng(Double.parseDouble(lat), Double.parseDouble(lng));
+        
+            String url = getDirectionsUrl(origin, dest);
+            DownloadTask downloadTask = new DownloadTask();
+            
+            downloadTask.execute(url);
+        }
+
+        private String getDirectionsUrl(LatLng origin, LatLng dest){
+
+            String str_origin = "origin="+origin.latitude+","+origin.longitude;
+            String str_dest = "destination="+dest.latitude+","+dest.longitude;
+            String sensor = "sensor=false";
+
+            //パラメータ
+            String parameters = str_origin+"&"+str_dest+"&"+sensor + "&language=ja" + "&mode=" + travelMode;
+
+            //JSON指定
+            String output = "json";            
+            String url = "https://maps.googleapis.com/maps/api/directions/"+output+"?"+parameters;
+
+            return url;
+        }
+        
+        private String downloadUrl(String strUrl) throws IOException{
+            String data = "";
+            InputStream iStream = null;
+            HttpURLConnection urlConnection = null;
+            try{
+                URL url = new URL(strUrl);
+                urlConnection = (HttpURLConnection) url.openConnection();
+                urlConnection.connect();
+                iStream = urlConnection.getInputStream();
+                BufferedReader br = new BufferedReader(new InputStreamReader(iStream));
+                StringBuffer sb = new StringBuffer();
+                String line = "";
+                while( ( line = br.readLine()) != null){
+                    sb.append(line);
+                }
+                data = sb.toString();
+                br.close();
+
+            }catch(Exception e){
+                //Log.d("Exception while downloading url", e.toString());
+            }finally{
+                iStream.close();
+                urlConnection.disconnect();
+            }
+            return data;
+        }
+
+        private class DownloadTask extends AsyncTask<String, Void, String>{
+            //非同期で取得
+            @Override
+            protected String doInBackground(String... url) {
+                 
+                String data = "";
+                try{
+                    // Fetching the data from web service
+                    data = downloadUrl(url[0]);
+                }catch(Exception e){
+                    //Log.d("Background Task",e.toString());
+                }
+                return data;
+            }
+              
+            // doInBackground()
+            @Override
+            protected void onPostExecute(String result) {
+                super.onPostExecute(result);
+                ParserTask parserTask = new ParserTask();
+                parserTask.execute(result);
+            }
+        }
+
+        /*parse the Google Places in JSON format */
+        private class ParserTask extends AsyncTask<String, Integer, List<List<HashMap<String,String>>> >{
+            
+            @Override
+            protected List<List<HashMap<String, String>>> doInBackground(String... jsonData) {
+
+                JSONObject jObject;
+                List<List<HashMap<String, String>>> routes = null;
+
+                try{
+                    jObject = new JSONObject(jsonData[0]);
+                    ParseJsonpOfDirectionAPI parser = new ParseJsonpOfDirectionAPI();
+                    
+                    routes = parser.parse(jObject);
+                }catch(Exception e){
+                    e.printStackTrace();
+                }
+                return routes;
+            }
+
+            //ルート検索で得た座標を使って経路表示
+            @Override
+            protected void onPostExecute(List<List<HashMap<String, String>>> result) {
+                
+                ArrayList<LatLng> points = null;
+                PolylineOptions lineOptions = null;
+                MarkerOptions markerOptions = new MarkerOptions();
+                
+                if(result.size() != 0){
+                    
+                    for(int i=0;i<result.size();i++){
+                        points = new ArrayList<LatLng>();
+                        lineOptions = new PolylineOptions();
+                        
+                        List<HashMap<String, String>> path = result.get(i);
+                        
+                        for(int j=0;j<path.size();j++){
+                            HashMap<String,String> point = path.get(j);
+        
+                            double lat = Double.parseDouble(point.get("lat"));
+                            double lng = Double.parseDouble(point.get("lng"));
+                            LatLng position = new LatLng(lat, lng);
+        
+                            points.add(position);
+                        }
+        
+                        //ポリライン
+                        lineOptions.addAll(points);
+                        lineOptions.width(10);
+                        lineOptions.color(0x550000ff);
+                        
+                    }
+                
+                    //描画
+                    mGoogleMap.addPolyline(lineOptions);
+                }else{
+                	mGoogleMap.clear();
+                    Toast.makeText(getActivity(), "ルート情報を取得できませんでした", Toast.LENGTH_LONG).show();
+                }
+                //progressDialog.hide();
+                
+            }
         }
         
         //時間帯によってジャンルを決定する
